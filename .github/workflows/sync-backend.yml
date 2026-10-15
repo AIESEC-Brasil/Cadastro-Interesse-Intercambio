@@ -33,9 +33,12 @@ jobs:
           path: back-repository
           token: ${{ secrets.BACKEND_REPO_TOKEN }}
 
+      - name: Atualizar branch main do Back
+        run: git -C back-repository pull --ff-only origin main
+
       - name: Sincronizar arquivos do backend
         run: |
-          rsync -a --delete --exclude='.git' --exclude='.github/' --include='.env.example' --exclude='.env*' backend/ back-repository/
+          rsync -a --delete --itemize-changes --exclude='.git' --exclude='.github/' --include='.env.example' --exclude='.env*' backend/ back-repository/
           mkdir -p back-repository/.github/workflows
           cp backend/.github/workflows/deploy.yml back-repository/.github/workflows/deploy.yml
           git -C back-repository config user.name 'github-actions[bot]'
