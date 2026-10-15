@@ -1,0 +1,45 @@
+name: Sincronizar backend com repositório Back
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/sync-backend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-backend-to-back-repository
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Publicar backend no repositório separado
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar repositório Cadastro
+        uses: actions/checkout@v7
+
+      - name: Baixar repositório Back
+        uses: actions/checkout@v7
+        with:
+          repository: AIESEC-Brasil/Back-Cadastro-Interesse-Intercambio
+          ref: main
+          path: back-repository
+          token: ${{ secrets.BACKEND_REPO_TOKEN }}
+
+      - name: Sincronizar arquivos do backend
+        run: |
+          rsync -a --delete --exclude='.git' --exclude='.github/' backend/ back-repository/
+          git -C back-repository config user.name 'github-actions[bot]'
+          git -C back-repository config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C back-repository add --all
+          if git -C back-repository diff --cached --quiet; then
+            echo 'O repositório Back já está atualizado.'
+            exit 0
+          fi
+          git -C back-repository commit -m "Sincroniza backend do Cadastro"
+          git -C back-repository push origin HEAD:main
