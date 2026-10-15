@@ -33,7 +33,9 @@ jobs:
 
       - name: Sincronizar arquivos do backend
         run: |
-          rsync -a --delete --exclude='.git' --exclude='.github/' backend/ back-repository/
+          rsync -a --delete --exclude='.git' --exclude='.github/' --include='.env.example' --exclude='.env*' backend/ back-repository/
+          mkdir -p back-repository/.github/workflows
+          cp backend/.github/workflows/deploy.yml back-repository/.github/workflows/deploy.yml
           git -C back-repository config user.name 'github-actions[bot]'
           git -C back-repository config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git -C back-repository add --all
