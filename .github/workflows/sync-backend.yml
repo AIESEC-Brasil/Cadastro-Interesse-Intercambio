@@ -21,10 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Baixar repositório Cadastro
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Baixar repositório Back
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           repository: AIESEC-Brasil/Back-Cadastro-Interesse-Intercambio
           ref: main
