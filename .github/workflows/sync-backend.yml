@@ -7,7 +7,6 @@ on:
     paths:
       - 'backend/**'
       - '.github/workflows/sync-backend.yml'
-      - '!backend/Dockerfile'
   workflow_dispatch:
 
 permissions:
@@ -38,7 +37,8 @@ jobs:
 
       - name: Sincronizar arquivos do backend
         run: |
-          rsync -a --delete --itemize-changes --exclude='.git' --exclude='.github/' --include='.env.example' --exclude='.env*' backend/ back-repository/
+          rsync -a --delete --itemize-changes --exclude='/Dockerfile' --exclude='.git' --exclude='.github/' --include='.env.example' --exclude='.env*' backend/ back-repository/
+          rm -f back-repository/Dockerfile
           mkdir -p back-repository/.github/workflows
           cp backend/.github/workflows/deploy.yml back-repository/.github/workflows/deploy.yml
           git -C back-repository config user.name 'github-actions[bot]'
