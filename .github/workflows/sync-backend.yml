@@ -7,7 +7,7 @@ on:
     paths:
       - 'backend/**'
       - '.github/workflows/sync-backend.yml'
-      - 'Dockerfile'
+      - '!backend/Dockerfile'
   workflow_dispatch:
 
 permissions:
