@@ -1,4 +1,5 @@
 name: Sincronizar backend com repositório Back
+run-name: "Sincronizar Back | ${{ github.event.head_commit.message || github.event_name }}"
 
 on:
   push:
@@ -21,10 +22,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Baixar repositório Cadastro
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Baixar repositório Back
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: AIESEC-Brasil/Back-Cadastro-Interesse-Intercambio
           ref: main
@@ -43,5 +44,12 @@ jobs:
             echo 'O repositório Back já está atualizado.'
             exit 0
           fi
-          git -C back-repository commit -m "Sincroniza backend do Cadastro"
+          CHANGED_FILES="$(git -C back-repository diff --cached --name-only)"
+          FILE_COUNT="$(printf '%s\n' "$CHANGED_FILES" | awk 'NF { count++ } END { print count + 0 }')"
+          if [ "$FILE_COUNT" -eq 1 ]; then
+            COMMIT_SUBJECT="sync(backend): atualiza ${CHANGED_FILES}"
+          else
+            COMMIT_SUBJECT="sync(backend): atualiza ${FILE_COUNT} arquivos"
+          fi
+          git -C back-repository commit -m "$COMMIT_SUBJECT" -m "Arquivos sincronizados:" -m "$CHANGED_FILES"
           git -C back-repository push origin HEAD:main
