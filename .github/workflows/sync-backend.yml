@@ -38,6 +38,7 @@ jobs:
       - name: Sincronizar arquivos do backend
         run: |
           rsync -a --delete --itemize-changes --exclude='/Dockerfile' --exclude='.git' --exclude='.github/' --include='.env.example' --exclude='.env*' backend/ back-repository/
+          git -C back-repository rm -f --ignore-unmatch -- Dockerfile
           rm -f back-repository/Dockerfile
           mkdir -p back-repository/.github/workflows
           cp backend/.github/workflows/deploy.yml back-repository/.github/workflows/deploy.yml
