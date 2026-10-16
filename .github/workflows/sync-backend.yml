@@ -3,7 +3,7 @@ run-name: "Sincronizar Back | ${{ github.event.head_commit.message || github.eve
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'backend/**'
       - '.github/workflows/sync-backend.yml'
@@ -13,12 +13,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: sync-backend-to-back-repository
+  group: sync-backend-to-back-repository-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   sync:
-    name: Publicar backend no repositório separado
+    name: Publicar backend na branch ${{ github.ref_name }} do repositório Back
     runs-on: ubuntu-latest
     steps:
       - name: Baixar repositório Cadastro
@@ -32,8 +32,18 @@ jobs:
           path: back-repository
           token: ${{ secrets.BACKEND_REPO_TOKEN }}
 
-      - name: Atualizar branch main do Back
-        run: git -C back-repository pull --ff-only origin main
+      - name: Preparar branch correspondente no Back
+        run: |
+          TARGET_BRANCH="$GITHUB_REF_NAME"
+          if [ "$TARGET_BRANCH" = "main" ]; then
+            git -C back-repository pull --ff-only origin main
+          elif git -C back-repository ls-remote --exit-code --heads origin "$TARGET_BRANCH" >/dev/null; then
+            git -C back-repository fetch origin "$TARGET_BRANCH"
+            git -C back-repository checkout -B "$TARGET_BRANCH" FETCH_HEAD
+            git -C back-repository pull --ff-only origin "$TARGET_BRANCH"
+          else
+            git -C back-repository checkout -b "$TARGET_BRANCH" origin/main
+          fi
 
       - name: Sincronizar arquivos do backend
         run: |
@@ -47,6 +57,7 @@ jobs:
           git -C back-repository add --all
           if git -C back-repository diff --cached --quiet; then
             echo 'O repositório Back já está atualizado.'
+            git -C back-repository push origin "HEAD:$GITHUB_REF_NAME"
             exit 0
           fi
           CHANGED_FILES="$(git -C back-repository diff --cached --name-only)"
@@ -57,4 +68,4 @@ jobs:
             COMMIT_SUBJECT="sync(backend): atualiza ${FILE_COUNT} arquivos"
           fi
           git -C back-repository commit -m "$COMMIT_SUBJECT" -m "Arquivos sincronizados:" -m "$CHANGED_FILES"
-          git -C back-repository push origin HEAD:main
+          git -C back-repository push origin "HEAD:$GITHUB_REF_NAME"
