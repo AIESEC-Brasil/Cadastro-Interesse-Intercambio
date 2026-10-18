@@ -6,6 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ConfiguracoesCampo(BaseModel):
+    """
+    Configurações de um campo de metadado.
+    """
     model_config = ConfigDict(extra="allow")
 
     description: Optional[str] = None
@@ -13,12 +16,14 @@ class ConfiguracoesCampo(BaseModel):
 
 
 class ConfiguracaoMetadado(BaseModel):
+    """Configurações de um metadado."""
     model_config = ConfigDict(extra="allow")
 
     settings: ConfiguracoesCampo
 
 
 class CampoMetadado(BaseModel):
+    """Campo de metadado retornado pelo Apps Script B2C."""
     model_config = ConfigDict(extra="allow")
 
     external_id: str
@@ -26,6 +31,7 @@ class CampoMetadado(BaseModel):
 
 
 class DadosMetadados(BaseModel):
+    """Dados de metadados retornados pelo Apps Script B2C."""
     fields: List[CampoMetadado]
 
 
