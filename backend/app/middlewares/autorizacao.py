@@ -52,6 +52,22 @@ ROTAS_GRAFICAS = {"/api/docs", "/api/register"}
 ROTAS_RESTRITAS_IP = ("/apidoc", "/openapi", "/static")
 
 
+def _registrar_bloqueio(motivo: str) -> None:
+    """Registra tentativas barradas com status e dados básicos da requisição."""
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    client_ip = forwarded_for.split(",", 1)[0].strip() or request.remote_addr or "-"
+    logger.warning(
+        "AIESEC Security | acesso não autorizado | HTTP %s %s | motivo=%s | "
+        "método=%s | endpoint=%s | IP cliente=%s",
+        HttpStatus.UNAUTHORIZED.value,
+        HttpStatus.UNAUTHORIZED.name,
+        motivo,
+        request.method,
+        request.path,
+        client_ip,
+    )
+
+
 # =================================================================
 # 3. MIDDLEWARE DE VALIDAÇÃO DE ORIGEM
 # =================================================================
@@ -95,9 +111,7 @@ def verificar_origem() -> Union[None, Tuple[Response, int]]:
             client_ip = raw_ip.split(",")[0].strip() if raw_ip else ""
 
             if client_ip not in allow_ip_list:
-                logger.error(
-                    "AIESEC Security | Bloqueio de IP: Tentativa não autorizada."
-                )
+                _registrar_bloqueio("IP fora da lista autorizada")
                 mensagem_erro = {
                     "erro": "Sua máquina não está autorizada a entrar nessa rota"
                 }
@@ -110,7 +124,7 @@ def verificar_origem() -> Union[None, Tuple[Response, int]]:
     # =================================================================
     api_key: Optional[str] = request.headers.get("X-API-KEY")
     if api_key and api_key not in API_KEYS_PERMITIDAS:
-        logger.error("AIESEC Security | Chave de API não autorizada.")
+        _registrar_bloqueio("chave de API inválida")
         return jsonify({"error": "API Key inválida"}), HttpStatus.UNAUTHORIZED
 
     # =================================================================
@@ -119,7 +133,7 @@ def verificar_origem() -> Union[None, Tuple[Response, int]]:
     host: Optional[str] = request.headers.get("Host")
     if host and host not in DOMINIOS_PERMITIDOS:
         if not api_key:  # Se não houver API Key, o domínio precisa estar na whitelist
-            logger.error(f"AIESEC Security | Host não autorizado: {host}")
+            _registrar_bloqueio(f"host não autorizado: {host}")
             return (
                 jsonify({"error": "Domínio não autorizado"}),
                 HttpStatus.UNAUTHORIZED,
@@ -133,9 +147,7 @@ def verificar_origem() -> Union[None, Tuple[Response, int]]:
             and request.headers.get("Sec-Fetch-Mode") == "navigate"
             and request.path not in ROTAS_GRAFICAS
     ):
-        logger.error(
-            "AIESEC Security | Bloqueio de requisição direta em Produção."
-        )
+        _registrar_bloqueio("navegação direta bloqueada em produção")
         return (
             jsonify({"error": "Bloqueado: requisições diretas não são permitidas"}),
             HttpStatus.UNAUTHORIZED,

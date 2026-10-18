@@ -14,14 +14,15 @@ interfaces dinâmicas de documentação técnica (OpenAPI/Swagger/Scalar).
 import os
 
 # Importações do framework Flask para renderização de templates e gerenciamento de requisições
-from flask import redirect, render_template_string, request
+from flask import Response, redirect, render_template_string, request
+from flask_openapi3 import Tag
 
 # ==============================================================================
 # 2. IMPORTAÇÕES DE MÓDULOS INTERNOS DA APLICAÇÃO
 # ==============================================================================
 
 # DTO interno que encapsula códigos de status HTTP padrão
-from ..dto import HttpStatus
+from ..dto import BaseErrorResponse, HttpStatus
 
 # Decorator de segurança que intercepta requisições e valida o IP do cliente
 from ..middlewares import require_ip_whitelist
@@ -46,20 +47,27 @@ api = Router(name="api", url_prefix="/api")
 
 @api.get(
     "/docs",
-    description="Página HTML da Documentação Central da API",
-    responses={200: None},
+    summary="Exibir a documentação da API",
+    tags=[Tag(name="Documentação")],
+    description=(
+        "Apresenta links para as especificações OpenAPI e interfaces de "
+        "documentação interativa. Requer IP autorizado fora do ambiente DEV."
+    ),
+    responses={
+        200: {
+            "description": "Página HTML com os links da documentação.",
+            "content": {"text/html": {"schema": {"type": "string"}}},
+        },
+        401: {
+            "description": "IP cliente não autorizado.",
+            "content": {"text/html": {"schema": {"type": "string"}}},
+        },
+        422: BaseErrorResponse,
+    },
 )
 @require_ip_whitelist
 def documentacao() -> str:
-    """Renderiza a página principal do portal de documentação da API.
-
-    Exibe uma interface web responsiva com as cores institucionais da AIESEC,
-    disponibilizando atalhos para todas as especificações OpenAPI e visualizadores
-    interativos do sistema.
-
-    Returns:
-        str: String HTML processada pelo Jinja2 contendo o portal.
-    """
+    """Renderiza o portal de documentação da rota `/api/docs`."""
     # Mapeamento categorizado das rotas de documentação técnica expostas pelo Gateway
     rotas = {
         "Swagger & OAuth": [
@@ -260,18 +268,30 @@ def documentacao() -> str:
     return render_template_string(template, rotas=rotas)
 
 
-@api.get("/register", responses={308: None})
-def registro():
-    """
-    Registra o endereço IP do cliente solicitante na Whitelist.
-
-    Captura o IP real a partir do cabeçalho de Proxy 'X-Forwarded-For' (se disponível)
-    ou da conexão direta do socket ('request.remote_addr'). Após autorizar o IP no
-    módulo de storage, aplica um redirecionamento permanente (308) para o portal /api/docs.
-
-    Returns:
-        Tuple[Response, int]: Redirecionamento HTTP com status HttpStatus.PERMANENT_REDIRECT.
-    """
+@api.get(
+    "/register",
+    summary="Autorizar IP e abrir a documentação",
+    tags=[Tag(name="Documentação")],
+    description=(
+        "Registra na whitelist o IP informado em `X-Forwarded-For` ou, se "
+        "ausente, o endereço remoto da conexão. Em seguida redireciona para "
+        "`/api/docs`. Não recebe parâmetros nem corpo."
+    ),
+    responses={
+        308: {
+            "description": "Redirecionamento permanente para `/api/docs`.",
+            "headers": {
+                "Location": {
+                    "description": "URL de destino do redirecionamento.",
+                    "schema": {"type": "string"},
+                }
+            },
+        },
+        422: BaseErrorResponse,
+    },
+)
+def registro() -> tuple[Response, int]:
+    """Autoriza o IP cliente e redireciona na rota `/api/register`."""
     # Extrai o IP considerando proxies/load balancers ou pega o IP direto do cliente
     client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
 

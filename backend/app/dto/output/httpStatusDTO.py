@@ -1,3 +1,5 @@
+"""Enum de códigos HTTP utilizados nas respostas e logs da aplicação."""
+
 from enum import IntEnum                                   # Base para criação de enumeradores de inteiros
 
 

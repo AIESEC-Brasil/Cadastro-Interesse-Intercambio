@@ -36,6 +36,7 @@ def require_ip_whitelist(
 
     @wraps(func)
     def decorated_function(*args: Any, **kwargs: Any) -> Any:
+        """Valida o IP de origem e executa a rota apenas se estiver liberado."""
         # Carrega o conjunto (set) de IPs autorizados armazenados em memória (Complexidade O(1))
         allowed_ip_list = set(storage.get_ip())
 

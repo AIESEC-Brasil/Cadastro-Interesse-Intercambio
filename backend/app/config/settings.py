@@ -2,7 +2,17 @@
 
 import os
 
+
 def _env(name: str, default: str | None = None) -> str:
+    """Lê uma variável de ambiente obrigatória após remover espaços externos.
+
+    Args:
+        name: Nome da variável de ambiente.
+        default: Valor usado quando a variável não está definida.
+
+    Raises:
+        ValueError: Quando o valor final estiver vazio.
+    """
     value = os.getenv(name, default or "").strip()
     if not value:
         raise ValueError(f"Variável de ambiente obrigatória ausente: {name}")
