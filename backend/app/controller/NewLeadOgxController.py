@@ -104,5 +104,4 @@ def cadastro_lead() -> None:
     """Representa a rota `/new-lead-ogx/cadastro`, ainda reservada."""
     pass
 
-
 __all__ = ["new_lead_ogx"]
