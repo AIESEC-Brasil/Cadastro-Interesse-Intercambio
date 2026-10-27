@@ -13,6 +13,8 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      DOMINIOS_PERMITIDOS: ${DOMINIOS_PERMITIDOS:-localhost,127.0.0.1}
     ports:
       # Expõe a API diretamente no host para depuração e acesso a /docs; o
       # caminho normal do frontend passa pelo Nginx em /api/.
