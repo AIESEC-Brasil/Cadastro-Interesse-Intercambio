@@ -1,0 +1,46 @@
+# Define os serviços da aplicação para execução conjunta com `docker compose`.
+# Compose cria uma rede padrão compartilhada: os containers podem se localizar
+# pelo nome do serviço (por exemplo, o backend acessa o host `mysql`).
+# O arquivo .env na raiz fornece valores para interpolação `${VAR}`; `env_file`
+# também injeta as variáveis indicadas no ambiente de cada container.
+services:
+  # API: recebe as chamadas do frontend, valida os dados e acessa o MySQL.
+  backend:
+    # Constrói a imagem usando backend/ como contexto.
+    build: ./backend
+    restart: always
+    # Disponibiliza ao processo Python as credenciais de acesso ao banco.
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      # Expõe a API diretamente no host para depuração e acesso a /docs; o
+      # caminho normal do frontend passa pelo Nginx em /api/.
+      - "5000:5000"
+
+  # Interface web: servidor Next.js em modo standalone.
+  frontend:
+    # A URL pública é incorporada ao bundle durante o build do Next.js.
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_URL_DIRECIONADA: ${NEXT_PUBLIC_URL_DIRECIONADA:-}
+    restart: always
+    # A API é acessada pelo serviço backend na rede interna do Compose.
+    environment:
+      EXTERNAL_API_URL: http://backend:5000
+  # Gateway HTTP: ponto de entrada para o navegador e roteador para os serviços.
+  nginx:
+    # Constrói a imagem com proxy/nginx.conf como configuração ativa.
+    build: ./proxy
+    restart: always
+    ports:
+      # Publica HTTP na porta 80 do host para a porta 80 do Nginx no container.
+      - "80:80"
+    depends_on:
+      backend:
+        # Garante a ordem de início, mas não verifica prontidão HTTP da API.
+        condition: service_started
+      frontend:
+        # Inicia o Nginx depois que o container do frontend começou.
+        condition: service_started
