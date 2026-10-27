@@ -1,0 +1,379 @@
+import { useEffect, useState } from 'react';
+import apiOgxClient from '../service/clients/apiOgxClient';
+import { traduzirPalavras } from '../helpers/formatter';
+import { removerMascaraData, removerMascaraTelefone } from '../helpers/formatter';
+import type { OpcaoMetadados } from '../types/comum';
+
+/**
+ * Interface que define a estrutura padrão para os itens de metadados (listas suspensas, opções, etc.).
+ */
+const tituloTermoPadrao = 'Eu concordo com a coleta e uso dos meus dados conforme a Política de Privacidade *';
+
+// ==========================================
+// CACHE GLOBAL EM MEMÓRIA (SINGLETON DO MÓDULO)
+// ==========================================
+/**
+ * Objeto de cache global para armazenar metadados e opções estáticas/dinâmicas,
+ * evitando requisições HTTP repetidas ao carregar o componente múltiplas vezes.
+ */
+let cacheGlobal: {
+    listaProdutos: OpcaoMetadados[];
+    listaOrigens: OpcaoMetadados[];
+    listaMeio: OpcaoMetadados[];
+    listaUniversidades: OpcaoMetadados[];
+    listaEscritorios: OpcaoMetadados[];
+    listaIdiomas: OpcaoMetadados[];
+    listaSemestres: OpcaoMetadados[];
+    listaAreaAtuacao: OpcaoMetadados[];
+    listaNivelMercado: OpcaoMetadados[];
+    opcoesEmail: any[];
+    opcoesTelefone: any[];
+    tituloTermoLGPD: string;
+    descricaoTermoLGPD: string;
+    jaCarregou: boolean;
+} = {
+    listaProdutos: [],
+    listaOrigens: [],
+    listaMeio: [],
+    listaUniversidades: [],
+    listaEscritorios: [],
+    listaIdiomas: [],
+    listaSemestres: [],
+    listaAreaAtuacao: [],
+    listaNivelMercado: [],
+    opcoesEmail: [],
+    opcoesTelefone: [],
+    tituloTermoLGPD: tituloTermoPadrao,
+    descricaoTermoLGPD: '',
+    jaCarregou: false,
+};
+
+interface UseDadosFormularioProps {
+    modals: any;
+    fields?: any;
+    step?: number;
+    rota?: string;
+}
+
+/**
+ * Hook customizado responsável por gerenciar o carregamento de metadados, 
+ * o tratamento de formulários (etapas 1 e 2) e o envio de dados para a API do sistema.
+ */
+export function useDadosFormulario({ modals, fields, step, rota }: UseDadosFormularioProps) {
+    // Inicializa com o cache caso já tenha sido carregado antes
+    const [carregandoMetadados, setCarregandoMetadados] = useState(!cacheGlobal.jaCarregou);
+    const [erroMetadados, setErroMetadados] = useState(false);
+
+    const [listaProdutos, setListaProdutos] = useState<Array<{ id: number | string; nome: string }>>(cacheGlobal.listaProdutos);
+    const [listaOrigens, setListaOrigens] = useState<Array<{ id: number | string; nome: string }>>(cacheGlobal.listaOrigens);
+    const [listaMeio, setListaMeio] = useState<Array<{ id: number | string; nome: string }>>(cacheGlobal.listaMeio);
+    const [listaUniversidades, setListaUniversidades] = useState<any[]>(cacheGlobal.listaUniversidades);
+    const [listaEscritorios, setListaEscritorios] = useState<Array<{ id: number | string; nome: string }>>(cacheGlobal.listaEscritorios);
+    const [listaIdiomas, setListaIdiomas] = useState<Array<{ id: number | string; nome: string }>>(cacheGlobal.listaIdiomas);
+    const [listaSemestres, setListaSemestres] = useState<Array<{ id: number | string; nome: string }>>(cacheGlobal.listaSemestres);
+    const [listaAreaAtuacao, setListaAreaAtuacao] = useState<Array<{ id: number | string; nome: string }>>(cacheGlobal.listaAreaAtuacao);
+    const [listaNivelMercado, setListaNivelMercado] = useState<Array<{ id: number | string; nome: string }>>(cacheGlobal.listaNivelMercado);
+    const [opcoesEmail, setOpcoesEmail] = useState<any[]>(cacheGlobal.opcoesEmail);
+    const [opcoesTelefone, setOpcoesTelefone] = useState<any[]>(cacheGlobal.opcoesTelefone);
+    const [tituloTermoLGPD, setTituloTermoLGPD] = useState(cacheGlobal.tituloTermoLGPD);
+    const [descricaoTermoLGPD, setDescricaoTermoLGPD] = useState(cacheGlobal.descricaoTermoLGPD);
+
+    /**
+     * Efeito responsável por buscar os metadados do backend e as universidades na montagem do componente,
+     * utilizando o cache global caso já tenham sido obtidos anteriormente.
+     */
+    useEffect(() => {
+        if (cacheGlobal.jaCarregou) {
+            setCarregandoMetadados(false);
+            return;
+        }
+
+        let componenteMontado = true;
+
+        const carregarDados = async () => {
+            setCarregandoMetadados(true);
+            setErroMetadados(false);
+
+            try {
+                const [respostaMetadados, respostaUniversidades] = await Promise.all([
+                    apiOgxClient.get('/new-lead-ogx/metadados'),
+                    apiOgxClient.get('/divisao-mercado/universidades'),
+                ]);
+
+                const metadados = respostaMetadados?.data?.fields
+                    ?? (Array.isArray(respostaMetadados) ? respostaMetadados : respostaMetadados?.data);
+
+                if (!componenteMontado || !Array.isArray(metadados)) return;
+
+                const encontrarCampo = (identificador: string) =>
+                    metadados.find((item: any) => item.external_id === identificador);
+                const opcoesCampo = (campo: any) =>
+                    campo?.config?.settings?.options || campo?.options || [];
+
+                const ordenarOpcoes = (opcoes: any[]) => [...opcoes].sort((a, b) =>
+                    a.toLowerCase() === 'other' ? -1 : b.toLowerCase() === 'other' ? 1 : 0
+                );
+
+                const campoEmail = encontrarCampo('email');
+                const campoTelefone = encontrarCampo('telefone');
+                const campoEscritorio = encontrarCampo('aiesec_proxima');
+                const campoProduto = encontrarCampo('produto');
+                const campoOrigem = encontrarCampo('origem');
+                const campoMeio = encontrarCampo('meio');
+                const campoLGPD = encontrarCampo('termo_privacidade');
+                const campoIdiomas = encontrarCampo('idiomas');
+                const campoSemestres = encontrarCampo('semestre_curso');
+                const campoAreaAtuacao = encontrarCampo('area_atuacao');
+                const campoNivelAtuacao = encontrarCampo('nivel_mercado');
+
+                const [emailFormatado, telefoneFormatado] = await Promise.all([
+                    traduzirPalavras(opcoesCampo(campoEmail).length ? ordenarOpcoes(opcoesCampo(campoEmail)) : []),
+                    traduzirPalavras(opcoesCampo(campoTelefone).length ? ordenarOpcoes(opcoesCampo(campoTelefone)) : []),
+                ]);
+
+                const novoTitulo = campoLGPD?.name || tituloTermoPadrao;
+                const novaDescricao = campoLGPD?.config?.settings?.description || campoLGPD?.description || '';
+                const novasUniversidades = respostaUniversidades?.data?.universidades || [];
+                const novosEscritorios = opcoesCampo(campoEscritorio).map((item: any) => ({ id: item.id, nome: item.text }));
+                const novosProdutos = opcoesCampo(campoProduto).map((item: any) => ({ id: item.id, nome: item.text }));
+                const novasOrigens = opcoesCampo(campoOrigem).map((item: any) => ({ id: item.id, nome: item.text }));
+                const novosMeios = opcoesCampo(campoMeio).map((item: any) => ({ id: item.id, nome: item.text }));
+                const novosIdiomas = opcoesCampo(campoIdiomas).map((item: any) => ({ id: item.id, nome: item.text }));
+                const novosSemestres = opcoesCampo(campoSemestres).map((item: any) => ({ id: item.id, nome: item.text }));
+                const novasAreaAtuacao = opcoesCampo(campoAreaAtuacao).map((item: any) => ({ id: item.id, nome: item.text }));
+                const novosNivelAtuacao = opcoesCampo(campoNivelAtuacao).map((item: any) => ({ id: item.id, nome: item.text }));
+
+                cacheGlobal = {
+                    listaProdutos: novosProdutos,
+                    listaOrigens: novasOrigens,
+                    listaMeio: novosMeios,
+                    listaUniversidades: novasUniversidades,
+                    listaEscritorios: novosEscritorios,
+                    listaIdiomas: novosIdiomas,
+                    listaSemestres: novosSemestres,
+                    listaAreaAtuacao: novasAreaAtuacao,
+                    listaNivelMercado: novosNivelAtuacao,
+                    opcoesEmail: emailFormatado,
+                    opcoesTelefone: telefoneFormatado,
+                    tituloTermoLGPD: novoTitulo,
+                    descricaoTermoLGPD: novaDescricao,
+                    jaCarregou: true,
+                };
+
+                if (componenteMontado) {
+                    setTituloTermoLGPD(novoTitulo);
+                    setDescricaoTermoLGPD(novaDescricao);
+                    setOpcoesEmail(emailFormatado);
+                    setOpcoesTelefone(telefoneFormatado);
+                    setListaUniversidades(novasUniversidades);
+                    setListaEscritorios(novosEscritorios);
+                    setListaProdutos(novosProdutos);
+                    setListaOrigens(novasOrigens);
+                    setListaMeio(novosMeios);
+                    setListaIdiomas(novosIdiomas);
+                    setListaSemestres(novosSemestres);
+                    setListaAreaAtuacao(novasAreaAtuacao);
+                    setListaNivelMercado(novosNivelAtuacao);
+                }
+            } catch {
+                if (componenteMontado) {
+                    modals?.setTipoErroConexao('conexao');
+                    modals?.setModalErroConexaoAberta(true);
+                }
+            } finally {
+                if (componenteMontado) setCarregandoMetadados(false);
+            }
+        };
+
+        carregarDados();
+
+        return () => {
+            componenteMontado = false;
+        };
+    }, []);
+
+    /**
+     * Função responsável por processar e enviar os dados do formulário para a API,
+     * diferenciando o comportamento entre a Etapa 1 (Pré-cadastro) e a Etapa 2 (Qualificação).
+     */
+    const enviarDados = async () => {
+        if (!fields) {
+            console.warn("Tentativa de envio chamada sem o objeto 'fields' preenchido.");
+            return null;
+        }
+        modals.setCarregandoEnvio(true);
+        const nome = fields.nome;
+        const sobrenome = fields.sobrenome;
+        const senha = fields.senha;
+        const dataNascimento = removerMascaraData(fields.dataNascimento);
+        const email = fields.emails?.map((e: any) => ({ tipo: e.tipo, email: e.valor })) || [];
+        const telefone = fields.telefones?.map((e: any) => ({ tipo: e.tipo, numero: removerMascaraTelefone(e.valor) })) || [];
+
+        const comite = {
+            id: fields.idEscritorio,
+            nome: fields.escritorioSelecionado,
+        };
+
+        const universidade = {
+            id: fields.idUniversidade,
+            nome: fields.universidadeSelecionada,
+        };
+
+        const origem = {
+            id: fields.idOrigem,
+            nome: fields.origemSelecionada,
+        };
+
+        const meio = {
+            id: fields.idMeio,
+            nome: fields.meioSelecionado,
+        }
+
+        const produto: any = {
+            id_b2c: fields.idProduto,
+            titulo: fields.produtoSelecionado
+        };
+
+        if (rota === 'voluntario-global') {
+            produto.id_expa = 7;
+        } else if (rota === 'talento-global') {
+            produto.id_expa = 8;
+        } else if (rota === 'professor-global') {
+            produto.id_expa = 9;
+        }
+
+        let resultado = null;
+
+        if (step === 1) {
+            const jsonPreCadastro: any = {
+                nome,
+                sobrenome,
+                senha,
+                dataNascimento,
+                email,
+                telefone,
+                produto,
+                origem,
+                autorizacao: 1
+            };
+
+            if (fields.marcarSemUniversidade) {
+                jsonPreCadastro.comite = comite;
+            } else {
+                jsonPreCadastro.universidade = universidade;
+            }
+
+            if (fields.meioSelecionado){
+                jsonPreCadastro.meio = meio;
+            }
+
+            try {
+                const response: any = await apiOgxClient.post('/new-lead-ogx/cadastro', jsonPreCadastro);
+                if (response?.data?.item_id) {
+                    fields.setItemId(response.data.item_id);
+                }
+                resultado = response?.sucesso;
+            } catch (error: any) {
+                const dadosErro = error.response?.data?.data;
+                if (error.response?.status === 409) {
+                    const conteudoModal = dadosErro?.erro 
+                        ? dadosErro.erro.replace("EXPA", "").trim() 
+                        : dadosErro;
+                    modals?.setDataConflito(conteudoModal);
+                    modals?.setModalConflitoAberta(true);
+                } else {
+                    modals?.setTipoErroConexao('bug');
+                    modals?.setModalErroConexaoAberta(true);
+                }
+                console.log('Erro ao enviar dados:', dadosErro);
+            } finally {
+                modals?.setCarregandoEnvio(false);
+            }
+            return resultado;
+
+        } else if (step === 2) {
+            const jsonQualificacao: any = {
+                item_id: fields.itemId
+            };
+
+            if (fields.curso) {
+                jsonQualificacao.curso = fields.curso;
+            }
+
+            if (fields.anexoPdf) {
+                jsonQualificacao.curriculo = {
+                    nome: fields.anexoPdf.name,
+                    base64: fields.anexoBase64
+                };
+            }
+
+            if (fields.idiomasSelecionados?.length > 0) {
+                jsonQualificacao.idiomas = fields.idiomasSelecionados.map((nome: string, index: number) => ({
+                    id: fields.idIdiomas[index],
+                    nome
+                }));
+            }
+
+            if (fields.semestreSelecionado) {
+                jsonQualificacao.semestreCurso = {
+                    id: fields.idSemestre,
+                    nome: fields.semestreSelecionado
+                };
+            }
+
+            if (fields.areaAtuacaoSelecionada) {
+                jsonQualificacao.areaAtuacao = {
+                    id: fields.idAreaAtuacao,
+                    nome: fields.areaAtuacaoSelecionada
+                };
+            }
+
+            if (fields.nivelAtuacaoSelecionado) {
+                jsonQualificacao.nivelAtuacao = {
+                    id: fields.idNivelAtuacao,
+                    nome: fields.nivelAtuacaoSelecionado
+                };
+            }
+
+            try {
+                const response: any = await apiOgxClient.put('/new-lead-ogx/cadastro', jsonQualificacao);
+                resultado = response?.sucesso;
+            } catch (error: any) {
+                const dadosErro = error.response?.data?.data;
+                if (error.response?.status === 409) {
+                    const conteudoModal = dadosErro?.erro 
+                        ? dadosErro.erro.replace("EXPA", "").trim() 
+                        : dadosErro;
+                    modals?.setDataConflito(conteudoModal);
+                    modals?.setModalConflitoAberta(true);
+                } else {
+                    modals?.setTipoErroConexao('bug');
+                    modals?.setModalErroConexaoAberta(true);
+                }
+                console.log('Erro ao enviar dados:', dadosErro);
+            } finally {
+                modals?.setCarregandoEnvio(false);
+            }
+            return resultado;
+        }
+    };
+
+    return {
+        carregandoMetadados,
+        erroMetadados,
+        listaProdutos,
+        listaOrigens,
+        listaMeio,
+        listaUniversidades,
+        listaEscritorios,
+        listaIdiomas,
+        listaSemestres,
+        listaAreaAtuacao,
+        listaNivelMercado,
+        opcoesEmail,
+        opcoesTelefone,
+        tituloTermoLGPD,
+        descricaoTermoLGPD,
+        enviarDados
+    };
+}

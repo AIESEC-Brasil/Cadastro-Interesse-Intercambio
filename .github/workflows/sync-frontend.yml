@@ -1,0 +1,69 @@
+name: Sincronizar frontend com repositório Front
+run-name: "Sincronizar Front | ${{ github.event.head_commit.message || github.event_name }}"
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/sync-frontend.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-frontend-to-front-repository-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Publicar frontend na branch ${{ github.ref_name }} do repositório Front
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar repositório Cadastro
+        uses: actions/checkout@v7
+
+      - name: Baixar repositório Front
+        uses: actions/checkout@v7
+        with:
+          repository: AIESEC-Brasil/Front-Cadastro-Interesse-Intercambio
+          ref: main
+          path: front-repository
+          token: ${{ secrets.FRONTEND_REPO_TOKEN }}
+
+      - name: Preparar branch correspondente no Front
+        run: |
+          TARGET_BRANCH="$GITHUB_REF_NAME"
+          if [ "$TARGET_BRANCH" = "main" ]; then
+            git -C front-repository pull --ff-only origin main
+          elif git -C front-repository ls-remote --exit-code --heads origin "$TARGET_BRANCH" >/dev/null; then
+            git -C front-repository fetch origin "$TARGET_BRANCH"
+            git -C front-repository checkout -B "$TARGET_BRANCH" FETCH_HEAD
+            git -C front-repository pull --ff-only origin "$TARGET_BRANCH"
+          else
+            git -C front-repository checkout -b "$TARGET_BRANCH" origin/main
+          fi
+
+      - name: Sincronizar arquivos do Frontend
+        run: |
+          rsync -a --delete --itemize-changes --exclude='/Dockerfile' --exclude='.git' --exclude='.github/' --include='.env.example' --exclude='.env*' frontend/ front-repository/
+          git -C front-repository rm -f --ignore-unmatch -- Dockerfile
+          rm -f front-repository/Dockerfile
+          git -C front-repository config user.name 'github-actions[bot]'
+          git -C front-repository config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git -C front-repository add --all
+          if git -C front-repository diff --cached --quiet; then
+            echo 'O repositório Front já está atualizado.'
+            git -C front-repository push origin "HEAD:$GITHUB_REF_NAME"
+            exit 0
+          fi
+          CHANGED_FILES="$(git -C front-repository diff --cached --name-only)"
+          FILE_COUNT="$(printf '%s\n' "$CHANGED_FILES" | awk 'NF { count++ } END { print count + 0 }')"
+          if [ "$FILE_COUNT" -eq 1 ]; then
+            COMMIT_SUBJECT="sync(frontend): atualiza ${CHANGED_FILES}"
+          else
+            COMMIT_SUBJECT="sync(frontend): atualiza ${FILE_COUNT} arquivos"
+          fi
+          git -C front-repository commit -m "$COMMIT_SUBJECT" -m "Arquivos sincronizados:" -m "$CHANGED_FILES"
+          git -C front-repository push origin "HEAD:$GITHUB_REF_NAME"
