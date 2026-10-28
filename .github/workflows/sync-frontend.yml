@@ -47,9 +47,11 @@ jobs:
 
       - name: Sincronizar arquivos do Frontend
         run: |
-          rsync -a --delete --itemize-changes --exclude='/Dockerfile' --exclude='.git' --include='.env.example' --exclude='.env*' frontend/ front-repository/
+          rsync -a --delete --itemize-changes --exclude='/Dockerfile' --exclude='/.dockerignore' --exclude='.git' --include='.env.example' --exclude='.env*' frontend/ front-repository/
           git -C front-repository rm -f --ignore-unmatch -- Dockerfile
           rm -f front-repository/Dockerfile
+          git -C front-repository rm -f --ignore-unmatch -- .dockerignore
+          rm -f front-repository/.dockerignore
           git -C front-repository config user.name 'github-actions[bot]'
           git -C front-repository config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git -C front-repository add --all
