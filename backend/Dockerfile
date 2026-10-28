@@ -1,6 +1,6 @@
 # Imagem base da API: Python 3.13 sobre Alpine Linux. O build context deste
 # Dockerfile é a pasta backend/ (definida por build em docker-compose.yml).
-FROM python:3.13.18-alpine
+FROM python:3.13-alpine
 
 # Define o diretório de trabalho dentro da imagem. COPY, RUN e CMD passam a
 # operar a partir de /app, salvo quando um caminho absoluto é informado.
