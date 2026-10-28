@@ -9,12 +9,10 @@ services:
     # Constrói a imagem usando backend/ como contexto.
     build: ./backend
     restart: always
+    container_name: flask_openapi
     # Disponibiliza ao processo Python as credenciais de acesso ao banco.
     env_file:
       - path: .env
-        required: false
-    environment:
-      DOMINIOS_PERMITIDOS: ${DOMINIOS_PERMITIDOS:-localhost,127.0.0.1}
     ports:
       # Expõe a API diretamente no host para depuração e acesso a /docs; o
       # caminho normal do frontend passa pelo Nginx em /api/.
@@ -23,19 +21,22 @@ services:
   # Interface web: servidor Next.js em modo standalone.
   frontend:
     # A URL pública é incorporada ao bundle durante o build do Next.js.
-    build:
+    build: 
       context: ./frontend
-      args:
-        NEXT_PUBLIC_URL_DIRECIONADA: ${NEXT_PUBLIC_URL_DIRECIONADA:-}
+      args: 
+        - NEXT_PUBLIC_URL_DIRECIONADA=${NEXT_PUBLIC_URL_DIRECIONADA}
     restart: always
+    container_name: next.js
+    env_file:
+      - path: .env
     # A API é acessada pelo serviço backend na rede interna do Compose.
-    environment:
-      EXTERNAL_API_URL: http://backend:5000
+    
   # Gateway HTTP: ponto de entrada para o navegador e roteador para os serviços.
   nginx:
     # Constrói a imagem com proxy/nginx.conf como configuração ativa.
     build: ./proxy
     restart: always
+    container_name: ngnix
     ports:
       # Publica HTTP na porta 80 do host para a porta 80 do Nginx no container.
       - "80:80"
