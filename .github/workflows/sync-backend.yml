@@ -52,6 +52,8 @@ jobs:
           rm -f back-repository/Dockerfile
           mkdir -p back-repository/.github/workflows
           cp backend/.github/workflows/deploy.yml back-repository/.github/workflows/deploy.yml
+          mkdir -p back-repository/.github/scripts
+          cp -a backend/.github/scripts/. back-repository/.github/scripts/
           git -C back-repository config user.name 'github-actions[bot]'
           git -C back-repository config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git -C back-repository add --all
