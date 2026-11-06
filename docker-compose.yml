@@ -17,6 +17,16 @@ services:
       # Expõe a API diretamente no host para depuração e acesso a /docs; o
       # caminho normal do frontend passa pelo Nginx em /api/.
       - "5000:5000"
+    develop:
+      watch:
+        - action: sync
+          path: ./backend
+          target: /app
+          ignore:
+            - requirements.txt
+            - .env.dev
+        - action: rebuild
+          path: ./backend/requirements.txt
 
   # Interface web: servidor Next.js em modo standalone.
   frontend:
@@ -30,6 +40,15 @@ services:
     env_file:
       - path: .env
     # A API é acessada pelo serviço backend na rede interna do Compose.
+    develop:
+      watch:
+        # A imagem standalone não contém os fontes; rebuild mantém o bundle atualizado.
+        - action: rebuild
+          path: ./frontend
+          ignore:
+            - node_modules/
+            - .next/
+            - out/
     
   # Gateway HTTP: ponto de entrada para o navegador e roteador para os serviços.
   nginx:

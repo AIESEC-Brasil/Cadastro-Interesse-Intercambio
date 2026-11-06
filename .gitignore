@@ -1,0 +1,5 @@
+/GAS/
+.clasp.json
+/.gas-remote-verify/
+/.pytest_cache/
+/.ruff_cache/
