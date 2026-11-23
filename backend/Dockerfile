@@ -16,8 +16,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Copia primeiro a lista de dependências. O Docker pode reutilizar as camadas
 # de instalação enquanto requirements.txt não mudar, mesmo que o código mude.
 COPY requirements.txt .
-# Atualiza o instalador e instala FastAPI, SQLAlchemy, drivers e demais
-# dependências declaradas em requirements.txt sem guardar cache do pip na imagem.
+# Atualiza o instalador e instala Flask, clientes HTTP e demais dependências
+# declaradas em requirements.txt sem guardar cache do pip na imagem.
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir --root-user-action=ignore -r requirements.txt
 
@@ -25,10 +25,11 @@ RUN pip install --no-cache-dir --upgrade pip \
 # no contexto da imagem devem ser excluídos por um arquivo .dockerignore.
 COPY . .
 
-# Documenta a porta interna usada pelo Uvicorn. EXPOSE, sozinho, não publica a
-# porta no host; docker-compose.yml faz o mapeamento 5000:5000.
+# Documenta a porta interna usada pelo servidor WSGI. EXPOSE, sozinho, não
+# publica a porta no host; docker-compose.yml faz o mapeamento 5000:5000.
 EXPOSE 5000
 
-# Inicia server.py. O script executa Uvicorn e carrega a factory create_app
-# definida em app/main.py, escutando em 0.0.0.0:5000 dentro do container.
+# Inicia server.py. O script carrega a factory create_app definida em
+# app/main.py e seleciona o servidor de desenvolvimento ou Waitress conforme
+# AMBIENTE; ambos escutam em 0.0.0.0:5000 dentro do container.
 CMD ["python", "server.py"]
